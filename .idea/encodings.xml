@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/../../idea/unidbg-0.9.7/unidbg-0.9.7/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/../../idea/unidbg-0.9.7/unidbg-0.9.7/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/backend/dynarmic/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/backend/dynarmic/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/backend/hypervisor/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/backend/hypervisor/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/backend/kvm/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/backend/kvm/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/backend/unicorn2/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/backend/unicorn2/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/unidbg-android/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/unidbg-android/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/unidbg-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/unidbg-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/unidbg-ios/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/unidbg-0.9.7/unidbg-ios/src/main/resources" charset="UTF-8" />
+  </component>
+</project>

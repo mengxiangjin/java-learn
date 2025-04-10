@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="unidbg-kvm" />
+        <module name="unidbg-android" />
+        <module name="unidbg-ios" />
+        <module name="unidbg-api" />
+        <module name="unidbg-unicorn2" />
+        <module name="unidbg-hypervisor" />
+        <module name="unidbg-dynarmic" />
+      </profile>
+    </annotationProcessing>
+  </component>
+</project>
