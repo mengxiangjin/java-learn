@@ -9,6 +9,7 @@ import com.github.unidbg.linux.android.dvm.jni.ProxyDvmObject;
 import com.github.unidbg.memory.Memory;
 
 import java.io.File;
+import java.io.FileReader;
 import java.io.UnsupportedEncodingException;
 import java.util.*;
 
@@ -45,55 +46,94 @@ public class BliBli extends AbstractJni {
         module = dm.getModule(); // 把so文件加载到内存后，后期可以获取基地址，偏移量等，该变量代指so文件
     }
 
-    private void sign() {
+    private void sign(String fileName) {
         DvmClass dvmClass = vm.resolveClass("com.bilibili.nativelibrary.LibBili");
         String method = "s(Ljava/util/SortedMap;)Lcom/bilibili/nativelibrary/SignedQuery;";
         SortedMap<String,String> map = new TreeMap<>();
-        map.put("actual_played_time","0");
-        map.put("aid","1501630152");
-        map.put("appkey","1d8b6e7d45233436");
-        map.put("auto_play","0");
-        map.put("build","6240300");
-        map.put("c_locale","zh-Hans_CN");
-        map.put("channel","xxl_gdt_wm_253");
-        map.put("cid","1467056786");
-        map.put("epid","0");
-        map.put("epid_status","");
-        map.put("from","3");
-        map.put("from_spmid","search.search-result.0.0");
-        map.put("last_play_progress_time","0");
-        map.put("list_play_time","0");
-        map.put("max_play_progress_time","0");
-        map.put("mid","0");
-        map.put("miniplayer_play_time","0");
-        map.put("mobi_app","android");
-        map.put("network_type","1");
-        map.put("paused_time","0");
-        map.put("platform","android");
-        map.put("play_status","0");
-        map.put("play_type","1");
-        map.put("played_time","0");
-        map.put("quality","32");
-        map.put("s_locale","zh-Hans_CN");
-        map.put("session","a93e86ca7c337f8809a7a8e88df8f1620573b7bf");
-        map.put("sid","0");
-        map.put("spmid","main.ugc-video-detail.0.0");
-        map.put("start_ts","0");
-        map.put("statistics","{\"appId\":1,\"platform\":3,\"version\":\"6.24.0\",\"abtest\":\"\"}");
-        map.put("sub_type","0");
-        map.put("total_time","0");
-        map.put("type","3");
-        map.put("user_status","0");
-        map.put("video_duration","2887");
+        if (fileName.isEmpty()) {
+            map.put("actual_played_time","0");
+            map.put("aid","1501630152");
+            map.put("appkey","1d8b6e7d45233436");
+            map.put("auto_play","0");
+            map.put("build","6240300");
+            map.put("c_locale","zh-Hans_CN");
+            map.put("channel","xxl_gdt_wm_253");
+            map.put("cid","1467056786");
+            map.put("epid","0");
+            map.put("epid_status","");
+            map.put("from","3");
+            map.put("from_spmid","search.search-result.0.0");
+            map.put("last_play_progress_time","0");
+            map.put("list_play_time","0");
+            map.put("max_play_progress_time","0");
+            map.put("mid","0");
+            map.put("miniplayer_play_time","0");
+            map.put("mobi_app","android");
+            map.put("network_type","1");
+            map.put("paused_time","0");
+            map.put("platform","android");
+            map.put("play_status","0");
+            map.put("play_type","1");
+            map.put("played_time","0");
+            map.put("quality","32");
+            map.put("s_locale","zh-Hans_CN");
+            map.put("session","a93e86ca7c337f8809a7a8e88df8f1620573b7bf");
+            map.put("sid","0");
+            map.put("spmid","main.ugc-video-detail.0.0");
+            map.put("start_ts","0");
+            map.put("statistics","{\"appId\":1,\"platform\":3,\"version\":\"6.24.0\",\"abtest\":\"\"}");
+            map.put("sub_type","0");
+            map.put("total_time","0");
+            map.put("type","3");
+            map.put("user_status","0");
+            map.put("video_duration","2887");
+        } else {
+            String filePath = "apks" + File.separator + "shihuo" + File.separator + fileName;
+            String content = readFileContent(filePath);
+            map = convertStringToMap(content);
+        }
         DvmObject<?> dvmObject = dvmClass.callStaticJniMethodObject(emulator, method, ProxyDvmObject.createObject(vm, map));
         System.out.println(dvmObject.getValue().toString());
-
-
     }
 
+    public String readFileContent(String filePath) {
+        try {
+            FileReader fileReader = new FileReader(new File(filePath));
+            StringBuilder stringBuilder = new StringBuilder();
+            char[] buffer = new char[10];
+            int size;
+            while ((size = fileReader.read(buffer)) != -1) {
+                stringBuilder.append(buffer,0,size);
+            }
+            return stringBuilder.toString();
+        }catch (Exception e) {
+
+        }
+        return "";
+    }
+
+    private static SortedMap<String, String> convertStringToMap(String inputString) {
+        SortedMap<String, String> map = new TreeMap<>();
+        String[] keyValuePairs = inputString.split("&");
+
+        for (String pair : keyValuePairs) {
+            String[] entry = pair.split("=");
+            String key = entry[0];
+            String value = entry.length > 1 ? entry[1] : null;
+            map.put(key, value);
+        }
+
+        return map;
+    }
+
+
     public static void main(String[] args) {
+        String fileName = "";
+        if (args.length != 0) {
+            fileName = args[0];
+        }
         BliBli wph = new BliBli();
-        wph.sign();
+        wph.sign(fileName);
     }
 
     @Override

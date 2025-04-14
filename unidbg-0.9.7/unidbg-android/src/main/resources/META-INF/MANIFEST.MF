@@ -1,7 +1,9 @@
 Manifest-Version: 1.0
-Main-Class: com.nb.demo.CheZhiYing
-Class-Path: commons-logging-1.2.jar fastjson-1.2.83.jar capstone-3.1.8.j
- ar commons-io-2.11.0.jar demumble-1.0.4.jar jna-5.10.0.jar keystone-0.9
- .7.jar commons-codec-1.15.jar native-lib-loader-2.3.5.jar commons-colle
- ctions4-4.4.jar apk-parser-2.6.10.jar unicorn-1.0.12.jar
+Main-Class: com.nb.demo.BliBli
+Class-Path: slf4j-api-1.7.36.jar unicorn-1.0.12.jar capstone-3.1.8.jar j
+ na-5.10.0.jar native-lib-loader-2.3.5.jar commons-collections4-4.4.jar 
+ hamcrest-core-1.3.jar commons-codec-1.15.jar junit-4.13.2.jar apk-parse
+ r-2.6.10.jar reload4j-1.2.19.jar slf4j-reload4j-1.7.36.jar fastjson-1.2
+ .83.jar log4j-1.2.17.jar commons-io-2.11.0.jar demumble-1.0.4.jar commo
+ ns-logging-1.2.jar keystone-0.9.7.jar
 
