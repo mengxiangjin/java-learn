@@ -1,0 +1,14 @@
+
+[11:05:17 710][libxiaojianbang.so 0x01acc] [ff8300d1] 0x40001acc: "sub sp, sp, #0x20" sp=0xbffff700 => sp=0xbffff6e0
+[11:05:17 718][libxiaojianbang.so 0x01ad0] [e00f00f9] 0x40001ad0: "str x0, [sp, #0x18]" x0=0xfffe1640 sp=0xbffff6e0 => x0=0xfffe1640
+[11:05:17 725][libxiaojianbang.so 0x01ad4] [e10b00f9] 0x40001ad4: "str x1, [sp, #0x10]" x1=0x2aca3fc sp=0xbffff6e0 => x1=0x2aca3fc
+[11:05:17 727][libxiaojianbang.so 0x01ad8] [e20f00b9] 0x40001ad8: "str w2, [sp, #0xc]" w2=0x1f4 sp=0xbffff6e0 => w2=0x1f4
+[11:05:17 730][libxiaojianbang.so 0x01adc] [e30b00b9] 0x40001adc: "str w3, [sp, #8]" w3=0x12c sp=0xbffff6e0 => w3=0x12c
+[11:05:17 735][libxiaojianbang.so 0x01ae0] [e40700b9] 0x40001ae0: "str w4, [sp, #4]" w4=0x2bc sp=0xbffff6e0 => w4=0x2bc
+[11:05:17 739][libxiaojianbang.so 0x01ae4] [e80f40b9] 0x40001ae4: "ldr w8, [sp, #0xc]" sp=0xbffff6e0 => w8=0x1f4
+[11:05:17 741][libxiaojianbang.so 0x01ae8] [e90b40b9] 0x40001ae8: "ldr w9, [sp, #8]" sp=0xbffff6e0 => w9=0x12c
+[11:05:17 744][libxiaojianbang.so 0x01aec] [0801090b] 0x40001aec: "add w8, w8, w9" w8=0x1f4 w9=0x12c => w8=0x320
+[11:05:17 747][libxiaojianbang.so 0x01af0] [e90740b9] 0x40001af0: "ldr w9, [sp, #4]" sp=0xbffff6e0 => w9=0x2bc
+[11:05:17 752][libxiaojianbang.so 0x01af4] [0001090b] 0x40001af4: "add w0, w8, w9" w8=0x320 w9=0x2bc => w0=0x5dc
+[11:05:17 756][libxiaojianbang.so 0x01af8] [ff830091] 0x40001af8: "add sp, sp, #0x20" sp=0xbffff6e0 => sp=0xbffff700
+[11:05:17 761][libxiaojianbang.so 0x01afc] [c0035fd6] 0x40001afc: "ret"

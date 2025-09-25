@@ -5,8 +5,12 @@ import com.github.unidbg.Emulator;
 import com.github.unidbg.Module;
 import com.github.unidbg.Symbol;
 import com.github.unidbg.arm.HookStatus;
+import com.github.unidbg.arm.backend.Backend;
+import com.github.unidbg.arm.backend.CodeHook;
+import com.github.unidbg.arm.backend.UnHook;
 import com.github.unidbg.arm.context.Arm64RegisterContext;
 import com.github.unidbg.arm.context.RegisterContext;
+import com.github.unidbg.debugger.Debugger;
 import com.github.unidbg.hook.HookContext;
 import com.github.unidbg.hook.ReplaceCallback;
 import com.github.unidbg.hook.hookzz.HookEntryInfo;
@@ -21,8 +25,10 @@ import com.github.unidbg.pointer.UnidbgPointer;
 import com.github.unidbg.utils.Inspector;
 
 import java.io.File;
+import java.io.PrintStream;
+import java.nio.file.Files;
 
-public class NativeHelper{
+public class UnidbgNativeHelper {
 
     public static AndroidEmulator emulator;  // 静态属性，以后对象和类都可以直接使用
     public static Memory memory;
@@ -31,7 +37,7 @@ public class NativeHelper{
 
 
     // 构造方法,以后这个代码，基本是固定的，只需要改app位置即可，其他不用动
-    public NativeHelper() {
+    public UnidbgNativeHelper() {
         // 1.创建设备（32位或64位模拟器）， 具体看so文件在哪个目录。 在armeabi-v7a就选择32位
         // 传进设备时，如果是32位，后面so文件就要用32位，同理需要用64位的
         // 这个名字可以随便写,一般写成app的包名    以后可能会动
@@ -53,7 +59,6 @@ public class NativeHelper{
 
         // 6.dm代表so文件，dm.getModule()得到module对象，基于module对象可以访问so中的成员。
         module = dm.getModule(); // 把so文件加载到内存后，后期可以获取基地址，偏移量等，该变量代指so文件
-
     }
 
     /*
@@ -145,7 +150,7 @@ public class NativeHelper{
         System.out.println(md5CTX);
 
         //MD5 update 通过init初始化上下文进行传递，对于native非jstring的参数，不可使用vm.addLocalObject(new StringObjece(vm,"123456"))去进行传递参数
-            //需要申请内存空间写入内容后通过指针传递UnidbgPointer
+        //需要申请内存空间写入内容后通过指针传递UnidbgPointer
         UnidbgPointer pointer = emulator.getMemory().malloc(200, false).getPointer();
         byte[] datas = "xiaojianbang_unidbg".getBytes();
         pointer.write(datas);
@@ -264,25 +269,160 @@ public class NativeHelper{
 //                return super.onCall(emulator, context, originFunction);
                 return HookStatus.LR(emulator,100);
             }
-
         });
         int res = dvmClass.callStaticJniMethodInt(emulator, "md5(Ljava/lang/String;)Ljava/lang/String;", new StringObject(vm, "xiaojianbang")); // 执行Jni方法
         System.out.println("res替换后的结果--->" + res);
+
         System.out.println("------------------ hook_replace end ----------------");
     }
 
 
-    public static void main(String[] args) {
-        NativeHelper nativeHelper = new NativeHelper();
-        nativeHelper.call_add();
-        nativeHelper.call_md5();
-        nativeHelper.call_encode();
-        nativeHelper.call_findSymbolByName();
-        nativeHelper.call_function();
-        nativeHelper.hook_zz();
-        nativeHelper.hook_zz_inline();
-        nativeHelper.hook_zz_two();
-        nativeHelper.hook_replace();
+    /*
+    * 具体汇编行级别的Hook
+    *   context.getPointerArg 获取参数
+    *   context.getXPointer 获取具体的寄存器里面相关的值
+    *   注意hook时的起始地址需要绝对地址即module.base+offset
+    * */
+    public void hook_unicorn() {
+        System.out.println("----------------- hook_unicorn begin ---------------");
+        DvmClass dvmClass = vm.resolveClass("com.xiaojianbang.ndk.NativeHelper");
+        emulator.getBackend().hook_add_new(new CodeHook() {
+            @Override
+            public void hook(Backend backend, long address, int size, Object user) {
+                System.out.println(address);
+                if (address == module.base + 0x1FF4) {
+                    System.out.println("偏移地址0x1FF4进来了");
+                    Arm64RegisterContext context = emulator.getContext();
+                    UnidbgPointer pointerArg = context.getPointerArg(0);
+                    Inspector.inspect(pointerArg.getByteArray(0,32),"MD5CTX");
+                    UnidbgPointer plainTxt = context.getPointerArg(1);
+                    int length = context.getIntArg(2);
+                    Inspector.inspect(plainTxt.getByteArray(0,length),"明文");
+                } else if (address == module.base + 0x2004) {
+                    System.out.println("偏移地址0x2004进来了");
+                    Arm64RegisterContext context = emulator.getContext();
+                    UnidbgPointer cipherTxt = context.getPointerArg(1);
+                    int length = context.getIntArg(2);
+                    Inspector.inspect(cipherTxt.getByteArray(0,length),"密文");
+                }
+            }
+            @Override
+            public void onAttach(UnHook unHook) {
+            }
 
+            @Override
+            public void detach() {
+            }
+        },module.base + 0x1FE8,module.base + 0x2004,"");
+        DvmObject<?> dvmObject = dvmClass.callStaticJniMethodObject(emulator, "md5(Ljava/lang/String;)Ljava/lang/String;", "987654321");
+        String result  = (String) dvmObject.getValue();
+        System.out.println("hook_unicorn result--->" + result);
+        System.out.println("----------------- hook_unicorn end ---------------");
+    }
+
+    /*
+    * 打印函数调用栈情况
+    * */
+    public void hook_print_call_stack() {
+        System.out.println("----------------- hook_print_call_stack begin ---------------");
+        DvmClass dvmClass = vm.resolveClass("com.xiaojianbang.ndk.NativeHelper");
+
+        emulator.getBackend().hook_add_new(new CodeHook() {
+            @Override
+            public void hook(Backend backend, long address, int size, Object user) {
+                emulator.getUnwinder().unwind();
+            }
+
+            @Override
+            public void onAttach(UnHook unHook) {
+
+            }
+
+            @Override
+            public void detach() {
+
+            }
+        },module.base + 0x22A0,module.base + 0x22A0,"");
+
+        dvmClass.callStaticJniMethodObject(emulator, "md5(Ljava/lang/String;)Ljava/lang/String;", "987654321");
+        System.out.println("----------------- hook_print_call_stack end ---------------");
+    }
+
+
+    /*
+    * 添加断点 可按二次回车查看命令行帮助
+    * */
+    private void add_debugger() {
+        System.out.println("------------------- add_debugger begin -------------------");
+        DvmClass dvmClass = vm.resolveClass("com.xiaojianbang.ndk.NativeHelper");
+
+        Debugger debugger = emulator.attach();
+        debugger.addBreakPoint(module.base + 0x1AEC);
+        debugger.addBreakPoint(module.base + 0x1AF4);
+
+        int result = dvmClass.callStaticJniMethodInt(emulator, "add(III)I", 5, 6, 7);
+        System.out.println("call_add result--->" + result);
+        System.out.println("------------------- add_debugger end -------------------------");
+    }
+
+    /*
+    * 监控内存读写情况
+    * */
+    public void trace_read_write() {
+        System.out.println("------------------- trace_read_write begin -------------------");
+        File file = new File("log.txt");
+        try {
+            PrintStream printStream = new PrintStream(Files.newOutputStream(file.toPath()),true);
+            emulator.traceRead(module.base,module.base + module.size).setRedirect(printStream);
+            emulator.traceWrite(module.base,module.base + module.size).setRedirect(printStream);
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+
+        //主动调用
+        DvmClass dvmClass = vm.resolveClass("com.xiaojianbang.ndk.NativeHelper");
+        String method  ="md5(Ljava/lang/String;)Ljava/lang/String;";
+        DvmObject<?> dvmObject = dvmClass.callStaticJniMethodObject(emulator, method, "123456789");
+        String result  = (String) dvmObject.getValue();
+        System.out.println("trace_read_write call_md5 result--->" + result);
+        System.out.println("------------------- trace_read_write end -------------------");
+    }
+
+
+    public void trace_code() {
+        System.out.println("------------------- trace_code begin -------------------");
+        File file = new File("traceCode.txt");
+        try {
+            PrintStream printStream = new PrintStream(Files.newOutputStream(file.toPath()),true);
+            emulator.traceCode(module.base,module.base + module.size).setRedirect(printStream);
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+        //主动调用
+        DvmClass dvmClass = vm.resolveClass("com.xiaojianbang.ndk.NativeHelper");
+        String method = "add(III)I";
+        int result = dvmClass.callStaticJniMethodInt(emulator, method, 500, 300, 700);
+        System.out.println("trace_code call_add result--->" + result);
+        System.out.println("------------------- trace_code end -------------------");
+    }
+
+
+
+    public static void main(String[] args) {
+        UnidbgNativeHelper nativeHelper = new UnidbgNativeHelper();
+//        nativeHelper.call_add();
+//        nativeHelper.call_md5();
+//        nativeHelper.call_encode();
+//        nativeHelper.call_findSymbolByName();
+//        nativeHelper.call_function();
+//        nativeHelper.hook_zz();
+//        nativeHelper.hook_zz_inline();
+//        nativeHelper.hook_zz_two();
+//        nativeHelper.hook_replace();
+//        nativeHelper.hook_unicorn();
+//        nativeHelper.hook_print_call_stack();
+//        nativeHelper.add_debugger();
+//        nativeHelper.trace_read_write();
+//        nativeHelper.trace_code();
     }
 }
