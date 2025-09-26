@@ -8,14 +8,19 @@ import com.github.unidbg.linux.android.AndroidEmulatorBuilder;
 import com.github.unidbg.linux.android.AndroidResolver;
 import com.github.unidbg.linux.android.dvm.*;
 import com.github.unidbg.memory.Memory;
-import com.github.unidbg.memory.MemoryBlock;
-import com.github.unidbg.pointer.UnidbgPointer;
 import unicorn.ArmConst;
 
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 
 
+/*
+* ida中日志输出打印尝试访问已经release的变量导致错误
+*   通过跳过改日志打印汇编
+*       1、修改PC寄存器的值为下一行地址
+*       2、修改日志输出的机器码FF F7 A4 EE 为NOP机器码 即00 BF 00 BF 什么都不做指令
+*
+* 79EE68C4C011B923EB2DA905553EA045
+* */
 public class UnidbgSignManager extends AbstractJni {
 
     public static AndroidEmulator emulator;  // 静态属性，以后对象和类都可以直接使用
@@ -50,78 +55,27 @@ public class UnidbgSignManager extends AbstractJni {
 
 
     public void call_sign() {
-        emulator.attach().addBreakPoint(module.base + 0x976L, new BreakPointCallback() {
+        //写入字符串到内存中
+//        String str = "Hello, Unidbg!";
+//        byte[] strBytes = str.getBytes(StandardCharsets.UTF_8); // 转为 UTF-8 字节
+//        UnidbgPointer pointer = memory.malloc(strBytes.length + 1, false).getPointer();
+//        pointer.write(strBytes);
+//        emulator.getBackend().reg_write(ArmConst.UC_ARM_REG_R11,pointer.peer);
+
+        /*
+        * 方式一
+        * */
+        emulator.attach().addBreakPoint(module.base + 0xABE, new BreakPointCallback() {
             @Override
             public boolean onHit(Emulator<?> emulator, long address) {
-                System.out.println("-----> 0x976L 在地址 " + Long.toHexString(address) + " 处拦截");
-
-                // 安全的PC跳转
-                try {
-                    emulator.getBackend().reg_write(ArmConst.UC_ARM_REG_PC, module.base + 0x994L + 1);
-                    System.out.println("成功跳转到: " + Long.toHexString(module.base + 0x994L));
-                } catch (Exception e) {
-                    System.err.println("跳转失败: " + e.getMessage());
-                }
+                System.out.println(Long.toHexString(address));
+                emulator.getBackend().reg_write(ArmConst.UC_ARM_REG_PC, address + 4 + 1);
                 return true;
             }
         });
 
-        //跳过release
-        emulator.attach().addBreakPoint(module.base + 0xA62, new BreakPointCallback() {
-            @Override
-            public boolean onHit(Emulator<?> emulator, long address) {
-                System.out.println("-----> 0xA62 在地址 " + Long.toHexString(address) + " 处拦截");
-                // 安全的PC跳转
-                try {
-                    emulator.getBackend().reg_write(ArmConst.UC_ARM_REG_PC, module.base + 0xAA4 + 1);
-                    System.out.println("成功跳转到: " + Long.toHexString(module.base + 0xAA4));
-                } catch (Exception e) {
-                    System.err.println("跳转失败: " + e.getMessage());
-                }
-                return true;
-            }
-        });
-//
-        emulator.attach().addBreakPoint(module.base + 0x9d5, new BreakPointCallback() {
-            @Override
-            public boolean onHit(Emulator<?> emulator, long address) {
-                System.out.println("-----> 0x994 在地址 " + Long.toHexString(address) + " 处拦截");
-
-                String sign = "A1B2C3D4E5F67890A1B2C3D4E5F67890";
-                byte[] signBytes = sign.getBytes(StandardCharsets.UTF_8);
-                System.out.println("字符串字节长度：" + signBytes.length); // 确认是32
-
-                int mallocSize = signBytes.length + 1;
-                MemoryBlock block = emulator.getMemory().malloc(mallocSize, true);
-                UnidbgPointer pointer = block.getPointer();
-                long strAddr32 = pointer.peer & 0xFFFFFFFFL; // 32位有效地址
-                System.out.println("分配的地址：0x" + Long.toHexString(strAddr32));
-
-                // 写入字符串内容
-                pointer.write(signBytes);
-                // 写入结束符
-                pointer.setByte(signBytes.length, (byte) 0);
-
-                // 关键步骤：将地址设置到R11寄存器（v12 = R11）
-                emulator.getBackend().reg_write(ArmConst.UC_ARM_REG_R11, strAddr32);
-                System.out.println("已将R11设置为：0x" + Long.toHexString(strAddr32));
-
-                // 验证R11设置是否成功
-                long r11Value = emulator.getBackend().reg_read(ArmConst.UC_ARM_REG_R11).longValue() & 0xFFFFFFFFL;
-                System.out.println("R11当前值：0x" + Long.toHexString(r11Value)); // 应与分配的地址一致
-
-                // 验证内存内容
-                byte[] checkBytes = new byte[32];
-                pointer.read(0, checkBytes, 0, 32);
-                String checkStr = new String(checkBytes, StandardCharsets.UTF_8);
-                System.out.println("内存中的字符串：[" + checkStr + "]"); // 应显示完整字符串
-                return true;
-            }
-        });
 
         DvmClass dvmClass = vm.resolveClass("com/sichuanol/cbgc/util/SignManager");
-//        DvmObject<?> dvmObject = dvmClass.callStaticJniMethodObject(emulator, "getSign(Ljava/lang/Sting;Ljava/lang/Sting;Ljava/lang/Sting;)Ljava/lang/Sting;",  new StringObject(vm, ""), new StringObject(vm, ""), new StringObject(vm, "1636221462621"));
-//        System.out.println("result--->" + dvmObject.getValue());
 
         String data = "1636221462621";
         StringObject strResult = dvmClass.callStaticJniMethodObject(emulator, "getSign(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", new StringObject(vm, "12"), new StringObject(vm, "34"), new StringObject(vm, data)); // 执行Jni方法
@@ -129,9 +83,36 @@ public class UnidbgSignManager extends AbstractJni {
     }
 
 
+    @Override
+    public DvmObject<?> callStaticObjectMethodV(BaseVM vm, DvmClass dvmClass, String signature, VaList vaList) {
+        if ("com/sichuanol/cbgc/util/LogShutDown->getAppSign()Ljava/lang/String;".equals(signature)) {
+            return new StringObject(vm,"0093CB6721DAF15D31CFBC9BBE3A2B79");
+        }
+        return super.callStaticObjectMethodV(vm, dvmClass, signature, vaList);
+    }
 
     public static void main(String[] args) {
         UnidbgSignManager signManager = new UnidbgSignManager();
+
+        /*
+        * 方式二
+        * */
+//        UnidbgPointer pointer = UnidbgPointer.pointer(emulator, module.base + 0xABE);
+//        // 读取 4 字节（原指令是 32 位 Thumb 指令，占 4 字节）
+//        byte[] originalBytes = new byte[4];
+//        pointer.read(0, originalBytes, 0, originalBytes.length); // 从偏移 0 开始读取 4 字节到数组
+//        // 转换为无符号十六进制显示
+//        System.out.print("原始机器码: ");
+//        for (byte b : originalBytes) {
+//            System.out.printf("%02X ", b & 0xFF);
+//        }
+//
+//        System.out.println(Arrays.toString(originalBytes));
+//
+//        byte[] nopBytes = {0x00, (byte)0xBF, 0x00, (byte)0xBF};
+//        pointer.write(nopBytes);
+
+
         signManager.call_sign();
     }
 }
