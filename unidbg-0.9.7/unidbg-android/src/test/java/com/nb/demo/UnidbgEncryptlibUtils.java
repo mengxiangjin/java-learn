@@ -3,24 +3,27 @@ package com.nb.demo;
 import com.github.unidbg.AndroidEmulator;
 import com.github.unidbg.Emulator;
 import com.github.unidbg.Module;
+import com.github.unidbg.arm.backend.Backend;
 import com.github.unidbg.debugger.BreakPointCallback;
 import com.github.unidbg.linux.android.AndroidEmulatorBuilder;
 import com.github.unidbg.linux.android.AndroidResolver;
 import com.github.unidbg.linux.android.dvm.*;
 import com.github.unidbg.memory.Memory;
 import com.github.unidbg.pointer.UnidbgPointer;
+import com.github.unidbg.utils.Inspector;
+import unicorn.Arm64Const;
 import unicorn.ArmConst;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 
 /*
-* ida中首先会对传入的签名进行校验
-*   if ( ((unsigned __int8)signatureChecked((int)a1, a2, a3, a6) ^ 1) & 0xFF )
-        return _JNIEnv::NewStringUTF(v13, "Illegal signature");
-*   找到signatureChecked的机器码地址，修改PC寄存器跳转到下一个地址，不执行此方法
-*   同时需要把返回值寄存器R0置为1，让其不走到if判断里面去
-*   result--->Cl7ihG9LlYOBQgbsDiFoa6diVoI=
+* 二种方式去得到返回值result
+*   1、直接去补环境整个MD5方法
+*
+*   2、知道MD5里面的主要逻辑后，其实里面前面做了一系列的校验判断，第一种方式补环境过于麻烦，可直接挑出重点函数的地址以及参数，直接一步步调用最后得出返回值即可
 * */
 public class UnidbgEncryptlibUtils extends AbstractJni {
 
@@ -56,31 +59,96 @@ public class UnidbgEncryptlibUtils extends AbstractJni {
 
 
     public void call_MD5() {
+        String sha1 = "F44B9F1A173564CD686D7FBF6022235EBFE49C4";
+        final UnidbgPointer pointer = emulator.getMemory().malloc(sha1.length() + 1, false).getPointer();
+        pointer.write(sha1.getBytes(StandardCharsets.UTF_8));
+        pointer.setByte(sha1.length(),(byte) 0);
 
+        /*
+            v11 = getSha1();
+        * 000000000001E670 18 93 00 94 BL              .getSha1
+        *   修改PC寄存器跳过getSha1方法的执行，同时构造返回值写入到X0中,返回给v11
+        * */
         emulator.attach().addBreakPoint(module.base + 0x1E670, new BreakPointCallback() {
             @Override
             public boolean onHit(Emulator<?> emulator, long address) {
                 System.out.println("进来了---->" + Long.toHexString(address));
-                System.out.println("触发断点地址: " + Long.toHexString(address));
-                // 读取当前指令的机器码（假设模拟器支持内存读取）
-                UnidbgPointer pointer = UnidbgPointer.pointer(emulator, address);
-                byte[] originalBytes = new byte[4];
-                pointer.read(0,originalBytes,0,originalBytes.length);
-                System.out.print("原始机器码: ");
-                for (byte b : originalBytes) {
-                    System.out.printf("%02X ", b & 0xFF);
-                }
+                emulator.getBackend().reg_write(Arm64Const.UC_ARM64_REG_PC,address + 4);
+                System.out.println("跳过getSha1函数体--->开始构造getSha1返回值");
+                emulator.getBackend().reg_write(Arm64Const.UC_ARM64_REG_X0,pointer.peer);
+                return true;
+            }
+        });
+
+        /*
+        * getSha1函数代码体的起始地址，用于判断getSha1是否真正跳过了，正确即不会打印输出
+        * */
+        emulator.attach().addBreakPoint(module.base + 0x1DF2C, new BreakPointCallback() {
+            @Override
+            public boolean onHit(Emulator<?> emulator, long address) {
+                System.out.println("getSha1进来了---->" + Long.toHexString(address));
+                return true;
+            }
+        });
 
 
-                byte[] nop = {0x1F, 0x20, 0x03, (byte) 0xD5};
-                pointer.write(nop);
+        /*
+        *   v11 = getSha1();  //上面返回的储存在寄存器X0里面的值
+            v12 = strcmp(v11, app_sha1); //X0与X1参数，若是常规的int类型，则为w0，w1 这是ARM64架构决定的
+        * 000000000001E680 FC 92 00 94 BL              .strcmp
+        *
+        * */
+        emulator.attach().addBreakPoint(module.base + 0x1E680, new BreakPointCallback() {
+            @Override
+            public boolean onHit(Emulator<?> emulator, long address) {
+                System.out.println("strcmp进来了---->" + Long.toHexString(address));
+                Number number = emulator.getBackend().reg_read(Arm64Const.UC_ARM64_REG_X0);
+                Number number1 = emulator.getBackend().reg_read(Arm64Const.UC_ARM64_REG_X1);
 
-                emulator.getBackend().reg_write(ArmConst.UC_ARM_REG_PC,address + 4);
+                byte[] datas = new byte[100];
+                memory.pointer(number.longValue()).read(0,datas,0,datas.length);
+                System.out.println("读取比较值1" + Arrays.toString(datas));
 
-                pointer.read(0,originalBytes,0,originalBytes.length);
-                for (byte b : originalBytes) {
-                    System.out.printf("%02X ", b & 0xFF);
-                }
+                byte[] datas1 = new byte[100];
+                memory.pointer(number1.longValue()).read(0,datas1,0,datas1.length);
+                System.out.println("读取比较值2" + Arrays.toString(datas1));
+                return true;
+            }
+        });
+
+
+
+        /*
+            if ( !v12 )
+        *   000000000001E688 60 01 00 34 CBZ             W0, loc_1E6B4
+        *   CBZ：是0即跳转到loc_1E6B4处  v12是strcmp返回的int结果，需要修改w0=0将其跳转到loc_1E6B4
+        * */
+        emulator.attach().addBreakPoint(module.base + 0x1E688, new BreakPointCallback() {
+            @Override
+            public boolean onHit(Emulator<?> emulator, long address) {
+                System.out.println("app签名比较---->" + Long.toHexString(address));
+                long l = emulator.getBackend().reg_read(Arm64Const.UC_ARM64_REG_W0).longValue();
+                emulator.getBackend().reg_write(Arm64Const.UC_ARM64_REG_W0,0);
+                System.out.println("强行写入0到W0中---->" + Long.toHexString(address));
+                return true;
+            }
+        });
+
+
+        /*
+        * MD5_CTX::MakePassMD5(&v50, v38, v39, Result);
+        * 000000000001E94C 7D 92 00 94 BL              ._ZN7MD5_CTX11MakePassMD5EPhjS0_ ; MD5_CTX::MakePassMD5(uchar *,uint,uchar *)
+        * hook该地址并读取该明文
+        * */
+        emulator.attach().addBreakPoint(module.base + 0x1E94C, new BreakPointCallback() {
+            @Override
+            public boolean onHit(Emulator<?> emulator, long address) {
+                System.out.println("获取MD5的明文---->" + Long.toHexString(address));
+                long l = emulator.getBackend().reg_read(Arm64Const.UC_ARM64_REG_X1).longValue();
+
+                byte[] datas = new byte[100];
+                memory.pointer(l).read(0,datas,0,datas.length);
+                System.out.println("读取明文：" + bytesToAscii(datas));
                 return true;
             }
         });
@@ -98,11 +166,81 @@ public class UnidbgEncryptlibUtils extends AbstractJni {
     }
 
 
+    /*
+    * 直接开始手动调用相关函数获取结果
+    * */
+    public void call_MD5(boolean constructor) {
+        byte[] datas = new byte[200];
+
+        //手动调用MD5初始化
+        UnidbgPointer md5CTX = emulator.getMemory().malloc(200, false).getPointer();
+        md5CTX.read(0,datas,0,datas.length);
+        System.out.println(Arrays.toString(datas));
+        module.callFunction(emulator,0x1EAD0,md5CTX);
+        md5CTX.read(0,datas,0,datas.length);
+        System.out.println(Arrays.toString(datas));
+
+        //手动调用MD5加密，构造函数传入参数
+        String mingwen = "1758879818020" + "60dff660611c47c4b0d8bb6a0569817c";
+        UnidbgPointer pointer = memory.malloc(mingwen.length(), false).getPointer();
+        pointer.write(mingwen.getBytes());
+
+        UnidbgPointer resultPointer = emulator.getMemory().malloc(200, false).getPointer();
+
+        module.callFunction(emulator,0x1FA38,md5CTX,pointer,mingwen.length(),resultPointer);
+        byte[] resultBytes = new byte[200];
+        resultPointer.read(0,resultBytes,0,resultBytes.length);
+        System.out.println("手动调用函数--->" + bytesToAscii(resultBytes));
+    }
 
 
     public static void main(String[] args) {
         UnidbgEncryptlibUtils encryptlibUtils = new UnidbgEncryptlibUtils();
         encryptlibUtils.call_MD5();
+        encryptlibUtils.call_MD5(true);
+    }
+
+    public static String bytesToHex(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return "";
+        }
+
+        StringBuilder hex = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            // 将byte转换为无符号int（0-255）
+            int unsignedByte = b & 0xFF;
+            // 转换为两位十六进制（不足两位补0）
+            String hexByte = Integer.toHexString(unsignedByte);
+            if (hexByte.length() == 1) {
+                hex.append('0');
+            }
+            hex.append(hexByte);
+        }
+        return hex.toString();
+    }
+
+    /**
+     * 字节数组→ASCII字符串（截止到第一个0）
+     */
+    private static String bytesToAscii(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return "";
+        }
+
+        StringBuilder ascii = new StringBuilder();
+        for (byte b : bytes) {
+            // 遇到0（\0）则结束
+            if (b == 0) {
+                break;
+            }
+            // 转换为ASCII字符（仅显示可打印字符，0-127）
+            if (b >= 32 && b <= 126) {
+                ascii.append((char) b);
+            } else {
+                ascii.append(String.format("\\x%02x", b)); // 不可打印字符显示为\xXX
+            }
+        }
+        return ascii.toString();
     }
 }
 
